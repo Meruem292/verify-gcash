@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant Capture and Upload</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@firebase/storage@9.6.1"></script>
+    <style>
+        #camera {
+            width: 100%;
+            height: auto;
+        }
+
+        #upload-status {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Instant Webcam Capture and Upload to Firebase</h1>
+
+    <video id="camera" autoplay></video>
+    <div id="upload-status"></div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAY6cFvK3-qjHcC6WVVNZufT5mgMg0GcvU", // Public API key, not private key
+            authDomain: "mynewdb-d615e.firebaseapp.com", // Note: no https:// prefix
+            projectId: "mynewdb-d615e",
+            storageBucket: "mynewdb-d615e.appspot.com", // Note: different format
+            messagingSenderId: "676300457063",
+            appId: "1:676300457063:web:c1dfc573db8457e28900c2"
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const storage = firebase.storage(app);
+
+        const videoElement = document.getElementById("camera");
+        const uploadStatus = document.getElementById("upload-status");
+
+        let stream;
+
+        // Start webcam stream
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then((mediaStream) => {
+                    stream = mediaStream;
+                    videoElement.srcObject = mediaStream;
+
+                    // Automatically capture and upload once webcam is ready
+                    captureImage();
+                })
+                .catch((error) => {
+                    console.error("Error accessing webcam: ", error);
+                    uploadStatus.innerText = "Error accessing webcam.";
+                });
+        }
+
+        // Capture image from webcam
+        function captureImage() {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+            const imageData = canvas.toDataURL('image/jpeg');
+            uploadImageToFirebase(imageData);
+        }
+
+        // Upload image to Firebase Storage
+        function uploadImageToFirebase(imageData) {
+            const storageRef = storage.ref();
+            const fileName = `images/${Date.now()}.jpg`;
+            const imageRef = storageRef.child(fileName);
+
+            const byteString = atob(imageData.split(',')[1]);
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: 'image/jpeg' });
+
+            const uploadTask = imageRef.put(blob);
+
+            uploadTask.on('state_changed', (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                uploadStatus.innerText = `Upload is ${progress.toFixed(2)}% done`;
+            }, (error) => {
+                console.error("Upload failed:", error);
+                uploadStatus.innerText = "Upload failed!";
+            }, () => {
+                uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+                    uploadStatus.innerText = `File uploaded successfully: ${downloadURL}`;
+                    console.log("File available at", downloadURL);
+                });
+            });
+        }
+
+        // Initialize webcam and automatically capture once ready
+        startCamera();
+    </script>
+</body>
+
+</html>
